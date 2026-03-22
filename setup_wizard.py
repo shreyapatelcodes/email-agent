@@ -171,26 +171,69 @@ def get_claude_desktop_config_path():
         return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
 
 
-def print_claude_desktop_instructions():
-    server_path = Path(__file__).parent / "mcp_server.py"
-    python_path = sys.executable  # Use the same Python that ran the wizard
+def configure_claude_desktop():
+    """Add the email-agent MCP server to Claude Desktop's config."""
+    server_path = str(Path(__file__).parent / "mcp_server.py")
+    python_path = str(sys.executable)
+    config_path = get_claude_desktop_config_path()
+
+    entry = {
+        "command": python_path,
+        "args": [server_path],
+    }
 
     print("\n" + "=" * 60)
     print("  Setup complete!")
     print("=" * 60)
     print()
-    print("To use with Claude Desktop, add this to your config file:")
-    print()
 
-    config_path = get_claude_desktop_config_path()
+    # Try to auto-configure Claude Desktop
+    try:
+        if config_path.exists():
+            existing = json.loads(config_path.read_text())
+        else:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            existing = {}
+
+        mcp_servers = existing.setdefault("mcpServers", {})
+
+        if "email-agent" in mcp_servers:
+            print("email-agent is already in your Claude Desktop config.")
+            update = input("Update it with the new paths? [Y/n]: ").strip().lower()
+            if update == "n":
+                print("Skipped. You can update it manually later.")
+                return
+        else:
+            print(f"Claude Desktop config: {config_path}")
+            add = input("Add email-agent to Claude Desktop automatically? [Y/n]: ").strip().lower()
+            if add == "n":
+                _print_manual_instructions(python_path, server_path, config_path)
+                return
+
+        mcp_servers["email-agent"] = entry
+        config_path.write_text(json.dumps(existing, indent=2) + "\n")
+        print(f"\nAdded email-agent to {config_path}")
+        print()
+        print("Quit and reopen Claude Desktop (Cmd+Q on Mac), then say")
+        print('"process my emails" to get started!')
+
+    except Exception as e:
+        print(f"\nCouldn't auto-configure: {e}")
+        _print_manual_instructions(python_path, server_path, config_path)
+
+
+def _print_manual_instructions(python_path, server_path, config_path):
+    """Print manual config instructions as a fallback."""
+    print()
+    print("To set up manually, add this to your Claude Desktop config file:")
+    print()
     print(f"  File: {config_path}")
     print()
-
     snippet = {
         "mcpServers": {
             "email-agent": {
-                "command": str(python_path),
-                "args": [str(server_path)]
+                "command": python_path,
+                "args": [server_path],
             }
         }
     }
@@ -199,7 +242,7 @@ def print_claude_desktop_instructions():
     print("If you already have other MCP servers configured, just add the")
     print('"email-agent" entry inside your existing "mcpServers" object.')
     print()
-    print('Open Claude Desktop and say "process my emails" to get started!')
+    print('Quit and reopen Claude Desktop, then say "process my emails" to get started!')
 
 
 def main():
@@ -226,7 +269,7 @@ def main():
     print_step(6, "Save configuration")
     write_config(config)
 
-    print_claude_desktop_instructions()
+    configure_claude_desktop()
 
 
 if __name__ == "__main__":
