@@ -280,22 +280,30 @@ def process_my_emails() -> str:
 
 1. Call the `process_emails` tool. This fetches all unread emails, auto-trashes spam, auto-archives notifications, and classifies the rest.
 
-2. Present the **simple** group first (thank yous, auto-replies):
+2. Present the **articles** group (forwarded articles, self-sent links):
+   - For each article email, extract the main URL, title, author, and source
+   - Write a 2-3 sentence summary of the article's core argument
+   - Assign 2-4 topic tags (reuse existing tags from `get_library_stats` when they fit)
+   - Show each article: title, source, summary, proposed tags
+   - Ask: save all? Mark any as already read? Tag any for a specific person?
+   - Save via `save_article`, then archive the original emails via `archive_batch`
+
+3. Present the **simple** group (thank yous, auto-replies):
    - Show a numbered list: sender + subject
    - Ask: "Archive all? y/n" (or let the user pick specific ones to keep)
    - Archive approved ones via `archive_batch`
 
-3. Present the **drafts** group:
+4. Present the **drafts** group:
    - For each email, use the knowledge base + thread context + category to draft a reply
    - Show all drafts as a numbered list with: sender, subject, brief summary, proposed reply
    - Ask for batch commands like: "approve all", "edit 3", "skip 2"
    - Send all approved drafts at once via `send_batch`
 
-4. Present the **escalations** group:
+5. Present the **escalations** group:
    - Show full email text for each
    - Ask {name} what to do with each one
 
-5. After all groups are handled, archive remaining processed emails via `archive_batch`
+6. After all groups are handled, archive remaining processed emails via `archive_batch`
 
 ## Writing Style
 

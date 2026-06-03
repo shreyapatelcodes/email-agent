@@ -1,11 +1,73 @@
 """Email classification and processing logic."""
 
+import re
+
 from gmail_client import (
     fetch_unread_emails,
     fetch_thread,
     trash_email,
     archive_email,
 )
+
+_URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]]+', re.IGNORECASE)
+
+_ARTICLE_DOMAINS = [
+    "substack.com",
+    "medium.com",
+    "theatlantic.com",
+    "newyorker.com",
+    "nytimes.com",
+    "theguardian.com",
+    "aeon.co",
+    "longreads.com",
+    "lrb.co.uk",
+    "nplusonemag.com",
+    "theverge.com",
+    "wired.com",
+    "nautil.us",
+    "lithub.com",
+    "every.to",
+]
+
+
+def _extract_article_urls(text: str) -> list[str]:
+    """Pull URLs that look like articles (not unsubscribe links, tracking pixels, etc.)."""
+    urls = _URL_PATTERN.findall(text)
+    skip = ["unsubscribe", "manage-subscription", "tracking", "click.", "list-manage", "mailchimp",
+            "email.mg.", "mailto:", ".png", ".jpg", ".gif", "accounts.google"]
+    filtered = []
+    for url in urls:
+        if any(s in url.lower() for s in skip):
+            continue
+        filtered.append(url)
+    return filtered
+
+
+def _is_article_email(email: dict, user_email: str) -> tuple[bool, list[str]]:
+    """Detect if an email is a forwarded or self-sent article worth saving."""
+    sender = email.get("from_email", "").lower()
+    body = email.get("body", "")
+    subject = email.get("subject", "").lower()
+
+    urls = _extract_article_urls(body)
+    if not urls:
+        return False, []
+
+    is_self_sent = sender == user_email.lower()
+
+    is_from_article_domain = any(domain in sender for domain in _ARTICLE_DOMAINS)
+
+    is_forwarded = subject.startswith("fwd:") or subject.startswith("fw:")
+
+    has_article_url = any(
+        any(domain in url.lower() for domain in _ARTICLE_DOMAINS)
+        for url in urls
+    )
+
+    if is_self_sent or is_forwarded or is_from_article_domain or has_article_url:
+        return True, urls
+
+    return False, []
 
 
 def process_inbox(service, config):
@@ -20,6 +82,7 @@ def process_inbox(service, config):
     """
     emails = fetch_unread_emails(service)
 
+    user_email = config.get("email", "")
     auto_trash = config.get("auto_trash_senders", [])
     auto_archive = config.get("auto_archive_senders", [])
     escalation_keywords = config.get("escalation_keywords", [])
@@ -30,6 +93,7 @@ def process_inbox(service, config):
     simple = []
     drafts = []
     escalations = []
+    articles = []
 
     for email in emails:
         sender = email["from_email"]
@@ -44,6 +108,18 @@ def process_inbox(service, config):
         if any(sender == s or sender.endswith("@" + s) or sender.endswith("." + s) for s in auto_archive):
             archive_email(service, email["id"])
             archived_count += 1
+            continue
+
+        # Articles: self-sent links, forwards, or emails from article platforms
+        is_article, article_urls = _is_article_email(email, user_email)
+        if is_article:
+            articles.append({
+                "id": email["id"],
+                "from": email["from"],
+                "subject": email["subject"],
+                "body": email["body"],
+                "urls": article_urls,
+            })
             continue
 
         # Classify remaining emails
@@ -111,6 +187,7 @@ def process_inbox(service, config):
         "archived": archived_count,
         "groups": {
             "simple": simple,
+            "articles": articles,
             "drafts": drafts,
             "escalations": escalations,
         },
