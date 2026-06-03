@@ -25,6 +25,7 @@
 const articles = (typeof LIBRARY_DATA !== 'undefined' && LIBRARY_DATA.articles) ? LIBRARY_DATA.articles : [];
 
 let activeFilters = { status: null, topic: null, person: null };
+let expandedId = null;
 
 function getAllTopics() {
   const s = new Set();
@@ -106,6 +107,12 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function toggleArticle(id, event) {
+  if (event.target.closest('.article-link')) return;
+  expandedId = (expandedId === id) ? null : id;
+  renderArticles();
+}
+
 function renderArticles() {
   const container = document.getElementById('article-list');
   let filtered = articles;
@@ -130,6 +137,8 @@ function renderArticles() {
   }
 
   container.innerHTML = filtered.map(a => {
+    const isExpanded = expandedId === a.id;
+
     const personTags = (a.tagged_for || []).map(p =>
       `<span class="tag person">${p}</span>`
     ).join('');
@@ -140,13 +149,29 @@ function renderArticles() {
 
     const readInfo = a.date_read ? `<span class="read-marker">Read ${formatDate(a.date_read)}</span>` : '';
 
+    const meta = [a.author, a.source].filter(Boolean).join(' · ');
+
+    let expanded = '';
+    if (isExpanded) {
+      expanded = `
+        <div class="article-expanded">
+          ${meta ? `<div class="expanded-meta">${meta}</div>` : ''}
+          ${a.summary ? `<div class="expanded-summary">${a.summary}</div>` : ''}
+          ${a.notes ? `<div class="expanded-notes">${a.notes}</div>` : ''}
+          <a class="article-link" href="${a.url}" target="_blank">Open article</a>
+        </div>`;
+    }
+
     return `
-      <a class="article-row" href="${a.url}" target="_blank">
-        <span class="status-dot ${a.status}"></span>
-        <span class="article-title">${a.title || a.url}</span>
-        <span class="article-tags">${topicTags}${personTags}</span>
-        <span class="article-date">${readInfo || formatDate(a.date_saved)}</span>
-      </a>`;
+      <div class="article-item ${isExpanded ? 'expanded' : ''}" onclick="toggleArticle('${a.id}', event)">
+        <div class="article-row">
+          <span class="status-dot ${a.status}"></span>
+          <span class="article-title">${a.title || a.url}</span>
+          <span class="article-tags">${topicTags}${personTags}</span>
+          <span class="article-date">${readInfo || formatDate(a.date_saved)}</span>
+        </div>
+        ${expanded}
+      </div>`;
   }).join('');
 }
 

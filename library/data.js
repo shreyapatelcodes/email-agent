@@ -12,7 +12,7 @@ const LIBRARY_DATA = {
       "summary": "An argument for why the cult of productivity misses the point. Real creative work requires unstructured time, and the pressure to optimize every hour makes us worse at the things that matter.",
       "notes": "This really resonated. The bit about 'productive leisure' being an oxymoron stuck with me.",
       "topics": ["Productivity", "Creativity", "Culture"],
-      "tagged_for": ["Safran"]
+      "tagged_for": ["Saffron"]
     },
     {
       "id": "demo0002",
