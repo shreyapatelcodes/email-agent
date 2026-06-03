@@ -47,11 +47,10 @@ function buildFilters() {
 
   let html = '';
 
-  // Status
   html += '<div class="filter-group"><label>Status</label>';
-  html += `<button class="filter-btn" data-filter="status" data-value="all">All</button>`;
-  html += `<button class="filter-btn" data-filter="status" data-value="unread">To Read</button>`;
-  html += `<button class="filter-btn" data-filter="status" data-value="read">Read</button>`;
+  html += '<button class="filter-btn" data-filter="status" data-value="all">All</button>';
+  html += '<button class="filter-btn" data-filter="status" data-value="unread">To Read</button>';
+  html += '<button class="filter-btn" data-filter="status" data-value="read">Read</button>';
   html += '</div>';
 
   if (topics.length > 0) {
@@ -104,7 +103,7 @@ function buildFilters() {
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function renderArticles() {
@@ -131,36 +130,23 @@ function renderArticles() {
   }
 
   container.innerHTML = filtered.map(a => {
+    const personTags = (a.tagged_for || []).map(p =>
+      `<span class="tag person">${p}</span>`
+    ).join('');
+
     const topicTags = (a.topics || []).map(t =>
       `<span class="tag topic">${t}</span>`
     ).join('');
-    const personTags = (a.tagged_for || []).map(p =>
-      `<span class="tag person">for ${p}</span>`
-    ).join('');
-    const tags = topicTags + personTags;
 
-    const meta = [
-      a.author,
-      a.source,
-      formatDate(a.date_saved),
-    ].filter(Boolean).join(' <span class="sep">&middot;</span> ');
-
-    const readDate = a.date_read ? `<div style="font-family: var(--font-sans); font-size: 0.72rem; color: var(--read-dot); margin-top: 0.2rem;">Read ${formatDate(a.date_read)}</div>` : '';
+    const readInfo = a.date_read ? `<span class="read-marker">Read ${formatDate(a.date_read)}</span>` : '';
 
     return `
-      <div class="article-card">
-        <div class="article-card-header">
-          <div class="status-dot ${a.status}"></div>
-          <div class="article-main">
-            <div class="article-title"><a href="${a.url}" target="_blank">${a.title || a.url}</a></div>
-            <div class="article-meta">${meta}</div>
-            ${a.summary ? `<div class="article-summary">${a.summary}</div>` : ''}
-            ${tags ? `<div class="article-tags">${tags}</div>` : ''}
-            ${a.notes ? `<div class="article-notes">${a.notes}</div>` : ''}
-            ${readDate}
-          </div>
-        </div>
-      </div>`;
+      <a class="article-row" href="${a.url}" target="_blank">
+        <span class="status-dot ${a.status}"></span>
+        <span class="article-title">${a.title || a.url}</span>
+        <span class="article-tags">${topicTags}${personTags}</span>
+        <span class="article-date">${readInfo || formatDate(a.date_saved)}</span>
+      </a>`;
   }).join('');
 }
 
