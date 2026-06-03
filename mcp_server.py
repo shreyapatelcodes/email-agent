@@ -18,6 +18,16 @@ from gmail_client import (
     trash_email as gmail_trash_email,
 )
 from email_processor import process_inbox
+from reading_list import (
+    save_article as rl_save_article,
+    update_article as rl_update_article,
+    remove_article as rl_remove_article,
+    list_articles as rl_list_articles,
+    get_all_topics,
+    get_all_people,
+    get_graph_data,
+    rebuild_site,
+)
 
 mcp = FastMCP(
     "email-agent",
@@ -120,6 +130,100 @@ def trash_email(msg_id: str) -> str:
     return json.dumps({"status": "trashed", "id": msg_id})
 
 
+# ── Reading List Tools ────────────────────────────────────────────────────────
+
+
+@mcp.tool()
+def save_article(
+    url: str,
+    title: str = "",
+    author: str = "",
+    source: str = "",
+    summary: str = "",
+    topics_json: str = "[]",
+    notes: str = "",
+    status: str = "unread",
+    tagged_for_json: str = "[]",
+) -> str:
+    """Save an article to the reading library. topics_json and tagged_for_json are JSON arrays of strings, e.g. '["AI", "culture"]' or '["Sara"]'."""
+    try:
+        topics = json.loads(topics_json)
+    except json.JSONDecodeError:
+        topics = []
+    try:
+        tagged_for = json.loads(tagged_for_json)
+    except json.JSONDecodeError:
+        tagged_for = []
+    article = rl_save_article(
+        url=url, title=title, author=author, source=source,
+        summary=summary, topics=topics, notes=notes,
+        status=status, tagged_for=tagged_for,
+    )
+    return json.dumps({"status": "saved", "article": article}, indent=2)
+
+
+@mcp.tool()
+def update_article(article_id: str, fields_json: str) -> str:
+    """Update a saved article. fields_json is a JSON object with fields to update, e.g. '{"status": "read", "notes": "loved this"}'. Valid fields: title, author, source, summary, topics, notes, status (unread/read), tagged_for."""
+    try:
+        fields = json.loads(fields_json)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+    result = rl_update_article(article_id, **fields)
+    if result:
+        return json.dumps({"status": "updated", "article": result}, indent=2)
+    return json.dumps({"error": f"Article {article_id} not found"})
+
+
+@mcp.tool()
+def remove_article(article_id: str) -> str:
+    """Remove an article from the reading library."""
+    if rl_remove_article(article_id):
+        return json.dumps({"status": "removed", "id": article_id})
+    return json.dumps({"error": f"Article {article_id} not found"})
+
+
+@mcp.tool()
+def list_saved_articles(status: str = "", topic: str = "", tagged_for: str = "") -> str:
+    """List saved articles from the reading library. Filter by status (unread/read), topic, or person name. Leave filters empty to list all."""
+    articles = rl_list_articles(
+        status=status or None,
+        topic=topic or None,
+        tagged_for=tagged_for or None,
+    )
+    return json.dumps({"count": len(articles), "articles": articles}, indent=2)
+
+
+@mcp.tool()
+def get_library_stats() -> str:
+    """Get reading library stats: total articles, topics, people tagged, read vs unread counts."""
+    articles = rl_list_articles()
+    topics = get_all_topics()
+    people = get_all_people()
+    read = sum(1 for a in articles if a["status"] == "read")
+    unread = sum(1 for a in articles if a["status"] == "unread")
+    return json.dumps({
+        "total": len(articles),
+        "read": read,
+        "unread": unread,
+        "topics": topics,
+        "people": people,
+    }, indent=2)
+
+
+@mcp.tool()
+def export_library_site() -> str:
+    """Rebuild the library website data file so the site reflects current articles. Returns the path to open in a browser."""
+    rebuild_site()
+    from reading_list import LIBRARY_DIR
+    index_path = LIBRARY_DIR / "index.html"
+    return json.dumps({
+        "status": "exported",
+        "path": str(index_path),
+        "hint": f"Open {index_path} in a browser, or run: python -m http.server 8000 -d {LIBRARY_DIR}",
+    }, indent=2)
+
+
 # ── Resources ──────────────────────────────────────────────────────────────────
 
 
@@ -215,6 +319,31 @@ def process_my_emails() -> str:
 - Auto-replies / out-of-office
 {f"## Knowledge Base{kb_section}" if kb_section else ""}
 """
+
+
+@mcp.prompt()
+def save_articles_from_email() -> str:
+    """Prompt for processing forwarded articles from email into the reading library."""
+    config = load_config()
+    name = config["user_name"]
+    return f"""You are helping {name} save articles to their reading library.
+
+When {name} forwards an article or sends a link:
+
+1. Extract the URL from the email body
+2. Read the article content (fetch the URL if needed)
+3. Determine: title, author, source (e.g. "Substack", "The Atlantic")
+4. Write a 2-3 sentence summary capturing the core argument or insight
+5. Assign 2-4 topic tags (e.g. "AI", "Culture", "Psychology", "Cities")
+6. Check if {name} included any personal notes in the email
+7. Ask {name}:
+   - Have you read this already, or is it for later? (sets status to "read" or "unread")
+   - Tag this for anyone? (e.g. "Sara would like this")
+8. Call `save_article` with all the extracted info
+
+Keep topic tags consistent across articles. Reuse existing tags when they fit (call `get_library_stats` to see current tags). Prefer broad, reusable topics over narrow one-off tags.
+
+When done, confirm what was saved and mention the article count in the library."""
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

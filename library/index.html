@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <div class="logo">Library</div>
+  <ul class="nav-links">
+    <li><a href="index.html" class="active">Reading List</a></li>
+    <li><a href="graph.html">Knowledge Graph</a></li>
+  </ul>
+</nav>
+
+<div class="filters" id="filters"></div>
+
+<div class="article-list" id="article-list"></div>
+
+<script src="data.js"></script>
+<script>
+const articles = (typeof LIBRARY_DATA !== 'undefined' && LIBRARY_DATA.articles) ? LIBRARY_DATA.articles : [];
+
+let activeFilters = { status: null, topic: null, person: null };
+
+function getAllTopics() {
+  const s = new Set();
+  articles.forEach(a => (a.topics || []).forEach(t => s.add(t)));
+  return [...s].sort();
+}
+
+function getAllPeople() {
+  const s = new Set();
+  articles.forEach(a => (a.tagged_for || []).forEach(p => s.add(p)));
+  return [...s].sort();
+}
+
+function buildFilters() {
+  const container = document.getElementById('filters');
+  const topics = getAllTopics();
+  const people = getAllPeople();
+  const readCount = articles.filter(a => a.status === 'read').length;
+  const unreadCount = articles.filter(a => a.status === 'unread').length;
+
+  let html = '';
+
+  // Status
+  html += '<div class="filter-group"><label>Status</label>';
+  html += `<button class="filter-btn" data-filter="status" data-value="all">All</button>`;
+  html += `<button class="filter-btn" data-filter="status" data-value="unread">To Read</button>`;
+  html += `<button class="filter-btn" data-filter="status" data-value="read">Read</button>`;
+  html += '</div>';
+
+  if (topics.length > 0) {
+    html += '<div class="filter-divider"></div>';
+    html += '<div class="filter-group"><label>Topic</label>';
+    topics.forEach(t => {
+      html += `<button class="filter-btn" data-filter="topic" data-value="${t}">${t}</button>`;
+    });
+    html += '</div>';
+  }
+
+  if (people.length > 0) {
+    html += '<div class="filter-divider"></div>';
+    html += '<div class="filter-group"><label>For</label>';
+    people.forEach(p => {
+      html += `<button class="filter-btn" data-filter="person" data-value="${p}">${p}</button>`;
+    });
+    html += '</div>';
+  }
+
+  html += `<div class="stats">${unreadCount} to read &middot; ${readCount} read</div>`;
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filterType = btn.dataset.filter;
+      const value = btn.dataset.value;
+
+      if (filterType === 'status') {
+        activeFilters.status = (value === 'all') ? null : value;
+        container.querySelectorAll('[data-filter="status"]').forEach(b => b.classList.remove('active'));
+      } else {
+        const wasActive = btn.classList.contains('active');
+        container.querySelectorAll(`[data-filter="${filterType}"]`).forEach(b => b.classList.remove('active'));
+        if (wasActive) {
+          activeFilters[filterType] = null;
+          renderArticles();
+          return;
+        }
+        activeFilters[filterType] = value;
+      }
+
+      btn.classList.add('active');
+      renderArticles();
+    });
+  });
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderArticles() {
+  const container = document.getElementById('article-list');
+  let filtered = articles;
+
+  if (activeFilters.status) {
+    filtered = filtered.filter(a => a.status === activeFilters.status);
+  }
+  if (activeFilters.topic) {
+    filtered = filtered.filter(a => (a.topics || []).includes(activeFilters.topic));
+  }
+  if (activeFilters.person) {
+    filtered = filtered.filter(a => (a.tagged_for || []).includes(activeFilters.person));
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h2>No articles yet</h2>
+        <p>Save articles through your email agent to start building your library.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(a => {
+    const topicTags = (a.topics || []).map(t =>
+      `<span class="tag topic">${t}</span>`
+    ).join('');
+    const personTags = (a.tagged_for || []).map(p =>
+      `<span class="tag person">for ${p}</span>`
+    ).join('');
+    const tags = topicTags + personTags;
+
+    const meta = [
+      a.author,
+      a.source,
+      formatDate(a.date_saved),
+    ].filter(Boolean).join(' <span class="sep">&middot;</span> ');
+
+    const readDate = a.date_read ? `<div style="font-family: var(--font-sans); font-size: 0.72rem; color: var(--read-dot); margin-top: 0.2rem;">Read ${formatDate(a.date_read)}</div>` : '';
+
+    return `
+      <div class="article-card">
+        <div class="article-card-header">
+          <div class="status-dot ${a.status}"></div>
+          <div class="article-main">
+            <div class="article-title"><a href="${a.url}" target="_blank">${a.title || a.url}</a></div>
+            <div class="article-meta">${meta}</div>
+            ${a.summary ? `<div class="article-summary">${a.summary}</div>` : ''}
+            ${tags ? `<div class="article-tags">${tags}</div>` : ''}
+            ${a.notes ? `<div class="article-notes">${a.notes}</div>` : ''}
+            ${readDate}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+buildFilters();
+renderArticles();
+</script>
+
+</body>
+</html>
