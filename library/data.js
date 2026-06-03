@@ -12,7 +12,7 @@ const LIBRARY_DATA = {
       "summary": "An argument for why the cult of productivity misses the point. Real creative work requires unstructured time, and the pressure to optimize every hour makes us worse at the things that matter.",
       "notes": "This really resonated. The bit about 'productive leisure' being an oxymoron stuck with me.",
       "topics": ["Productivity", "Creativity", "Culture"],
-      "tagged_for": ["Sara"]
+      "tagged_for": ["Safran"]
     },
     {
       "id": "demo0002",
@@ -40,7 +40,7 @@ const LIBRARY_DATA = {
       "summary": "Why adult friendships are hard to maintain, backed by research on how our social networks shrink after 25. Proposes that the real issue is not time but a lack of recurring unplanned interaction.",
       "notes": "The 'recurring unplanned interaction' framework is brilliant. Want to think about this more.",
       "topics": ["Relationships", "Community", "Psychology"],
-      "tagged_for": ["Sara"]
+      "tagged_for": ["Tristan"]
     },
     {
       "id": "demo0004",

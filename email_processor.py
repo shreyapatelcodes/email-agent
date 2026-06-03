@@ -43,31 +43,25 @@ def _extract_article_urls(text: str) -> list[str]:
     return filtered
 
 
-def _is_article_email(email: dict, user_email: str) -> tuple[bool, list[str]]:
-    """Detect if an email is a forwarded or self-sent article worth saving."""
-    sender = email.get("from_email", "").lower()
-    body = email.get("body", "")
-    subject = email.get("subject", "").lower()
+def _get_library_alias(user_email: str) -> str:
+    """Build the +library alias from the user's email."""
+    if "@" not in user_email:
+        return ""
+    local, domain = user_email.split("@", 1)
+    base = local.split("+")[0]
+    return f"{base}+library@{domain}"
 
-    urls = _extract_article_urls(body)
-    if not urls:
+
+def _is_article_email(email: dict, user_email: str) -> tuple[bool, list[str]]:
+    """Detect if an email was sent to the user's +library alias."""
+    to_field = email.get("to", "").lower()
+    library_alias = _get_library_alias(user_email).lower()
+
+    if not library_alias or library_alias not in to_field:
         return False, []
 
-    is_self_sent = sender == user_email.lower()
-
-    is_from_article_domain = any(domain in sender for domain in _ARTICLE_DOMAINS)
-
-    is_forwarded = subject.startswith("fwd:") or subject.startswith("fw:")
-
-    has_article_url = any(
-        any(domain in url.lower() for domain in _ARTICLE_DOMAINS)
-        for url in urls
-    )
-
-    if is_self_sent or is_forwarded or is_from_article_domain or has_article_url:
-        return True, urls
-
-    return False, []
+    urls = _extract_article_urls(email.get("body", ""))
+    return True, urls
 
 
 def process_inbox(service, config):
